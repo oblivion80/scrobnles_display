@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Scrobble Counter</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="theme-color" content="#121212" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<style>
+  :root {
+    --bg: #121212;
+    --card: #1e1e1e;
+    --accent: #d51007;
+    --green: #1db954;
+    --text: #f2f2f2;
+    --muted: #999;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 16px 10px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  header h1 {
+    font-size: 20px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  header h1 .dot { color: var(--accent); }
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 20px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .icon-btn:active { color: var(--text); }
+
+  main { padding: 0 12px 24px; }
+
+  .track {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--card);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .track img {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #333;
+    flex-shrink: 0;
+  }
+  .track-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .track-name {
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .track-artist {
+    font-size: 12.5px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .track-meta {
+    text-align: right;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+  .badge.now-playing { background: var(--green); color: #000; }
+  .badge::before { content: "▶"; font-size: 8px; opacity: 0.8; }
+  .badge.loading { background: #444; color: #999; animation: pulse 1.2s infinite; }
+  .timestamp { font-size: 11px; color: var(--muted); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .empty, .error {
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 20px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .error { color: #ff6b6b; }
+
+  /* Settings modal */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 20px;
+    width: 85%;
+    max-width: 340px;
+  }
+  .modal h2 { margin: 0 0 14px; font-size: 17px; }
+  .modal label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .modal input {
+    width: 100%;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: #fff;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 14px;
+    outline: none;
+  }
+  .modal input:focus { border-color: var(--accent); }
+  .modal .row { display: flex; gap: 8px; }
+  .modal button {
+    flex: 1;
+    padding: 11px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .modal .save { background: var(--accent); color: #fff; }
+  .modal .cancel { background: #333; color: #ccc; }
+  .modal .hint { font-size: 11px; color: #666; line-height: 1.5; margin-top: 12px; }
+  .modal .hint a { color: var(--accent); }
+  .modal .status { font-size: 12px; margin-top: 8px; min-height: 16px; color: var(--green); }
+  .modal .status.error { color: #ff6b6b; }
+
+  .pull-refresh {
+    text-align: center;
+    padding: 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="dot">●</span> Scrobbles</h1>
+  <div>
+    <button class="icon-btn" id="refreshBtn" title="Refresh">⟳</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings">⚙</button>
+  </div>
+</header>
+
+<main>
+  <div id="list"></div>
+</main>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2>Settings</h2>
+    <label>Last.fm Username</label>
+    <input type="text" id="usernameInput" placeholder="e.g. oblivion80" />
+    <label>Last.fm API Key</label>
+    <input type="text" id="apiKeyInput" placeholder="32-character key" />
+    <div class="row">
+      <button class="cancel" id="cancelBtn">Cancel</button>
+      <button class="save" id="saveBtn">Save</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="hint">
+      Get a free API key at
+      <a href="https://www.last.fm/api/account/create" target="_blank" rel="noopener">last.fm/api/account/create</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const LIST          = document.getElementById('list');
+const SETTINGS_BTN  = document.getElementById('settingsBtn');
+const REFRESH_BTN   = document.getElementById('refreshBtn');
+const MODAL         = document.getElementById('modalBackdrop');
+const USERNAME_IN   = document.getElementById('usernameInput');
+const APIKEY_IN     = document.getElementById('apiKeyInput');
+const SAVE_BTN      = document.getElementById('saveBtn');
+const CANCEL_BTN    = document.getElementById('cancelBtn');
+const STATUS        = document.getElementById('status');
+
+const RECENT_LIMIT = 15;
+const countCache = {};
+
+function getSettings() {
+  return {
+    username: localStorage.getItem('lastfm_username') || '',
+    apiKey:   localStorage.getItem('lastfm_apikey') || '',
+  };
+}
+
+function saveSettings(username, apiKey) {
+  localStorage.setItem('lastfm_username', username);
+  localStorage.setItem('lastfm_apikey', apiKey);
+}
+
+function openModal() {
+  const { username, apiKey } = getSettings();
+  USERNAME_IN.value = username;
+  APIKEY_IN.value   = apiKey;
+  STATUS.textContent = '';
+  STATUS.className = 'status';
+  MODAL.classList.add('open');
+}
+function closeModal() { MODAL.classList.remove('open'); }
+
+SETTINGS_BTN.addEventListener('click', openModal);
+CANCEL_BTN.addEventListener('click', closeModal);
+REFRESH_BTN.addEventListener('click', () => loadRecentTracks());
+
+SAVE_BTN.addEventListener('click', async () => {
+  const username = USERNAME_IN.value.trim();
+  const apiKey   = APIKEY_IN.value.trim();
+  if (!username || !apiKey) {
+    STATUS.textContent = 'Please fill in both fields.';
+    STATUS.className = 'status error';
+    return;
+  }
+  try {
+    const url = `https://ws.audioscrobbler.com/2.0/?method=user.getInfo&user=${encodeURIComponent(username)}&api_key=${encodeURIComponent(apiKey)}&format=json`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.message);
+    saveSettings(username, apiKey);
+    STATUS.textContent = `Saved! Welcome, ${data.user.name}`;
+    STATUS.className = 'status';
+    setTimeout(() => { closeModal(); loadRecentTracks(); }, 600);
+  } catch (e) {
+    STATUS.textContent = `Error: ${e.message}`;
+    STATUS.className = 'status error';
+  }
+});
+
+function timeAgo(unixSeconds) {
+  const diff = Math.floor(Date.now() / 1000) - unixSeconds;
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+async function fetchScrobbleCount(artist, track, apiKey, username) {
+  const key = `${artist.toLowerCase()}|||${track.toLowerCase()}`;
+  if (countCache[key] !== undefined) return countCache[key];
+  try {
+    const url =
+      `https://ws.audioscrobbler.com/2.0/?method=track.getInfo` +
+      `&api_key=${encodeURIComponent(apiKey)}` +
+      `&artist=${encodeURIComponent(artist)}` +
+      `&track=${encodeURIComponent(track)}` +
+      `&username=${encodeURIComponent(username)}` +
+      `&autocorrect=1&format=json`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const count = parseInt(data?.track?.userplaycount ?? '0', 10);
+    countCache[key] = count;
+    return count;
+  } catch {
+    return null;
+  }
+}
+
+function renderTrack(item, idx) {
+  const artist = item.artist['#text'] || item.artist.name || '';
+  const name   = item.name;
+  const img    = (item.image && item.image.find(i => i.size === 'medium')?.["#text"]) || '';
+  const nowPlaying = item['@attr']?.nowplaying === 'true';
+  const ts = item.date?.uts;
+
+  const div = document.createElement('div');
+  div.className = 'track';
+  div.innerHTML = `
+    <img src="${img}" alt="" onerror="this.style.visibility='hidden'" />
+    <div class="track-info">
+      <div class="track-name">${escapeHtml(name)}</div>
+      <div class="track-artist">${escapeHtml(artist)}</div>
+    </div>
+    <div class="track-meta">
+      <span class="badge loading" data-badge="${idx}">…</span>
+      <span class="timestamp">${nowPlaying ? 'Scrobbling now' : (ts ? timeAgo(ts) : '')}</span>
+    </div>
+  `;
+  return { div, artist, name, nowPlaying };
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
+async function loadRecentTracks() {
+  const { username, apiKey } = getSettings();
+  if (!username || !apiKey) {
+    LIST.innerHTML = `<div class="empty">Tap ⚙ to set your Last.fm username and API key.</div>`;
+    return;
+  }
+
+  REFRESH_BTN.style.opacity = '0.5';
+  LIST.innerHTML = `<div class="empty">Loading…</div>`;
+
+  try {
+    const url =
+      `https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks` +
+      `&user=${encodeURIComponent(username)}` +
+      `&api_key=${encodeURIComponent(apiKey)}` +
+      `&limit=${RECENT_LIMIT}&format=json`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.message);
+
+    const tracks = data.recenttracks?.track || [];
+    LIST.innerHTML = '';
+
+    if (tracks.length === 0) {
+      LIST.innerHTML = `<div class="empty">No recent scrobbles found.</div>`;
+      return;
+    }
+
+    const entries = tracks.map((t, i) => renderTrack(t, i));
+    entries.forEach(({ div }) => LIST.appendChild(div));
+
+    // Fetch counts in parallel batches of 5
+    const BATCH = 5;
+    for (let i = 0; i < entries.length; i += BATCH) {
+      const batch = entries.slice(i, i + BATCH);
+      await Promise.all(batch.map(async ({ artist, name, nowPlaying }, j) => {
+        const idx = i + j;
+        const count = await fetchScrobbleCount(artist, name, apiKey, username);
+        const badge = LIST.querySelector(`[data-badge="${idx}"]`);
+        if (!badge) return;
+        badge.classList.remove('loading');
+        if (nowPlaying) badge.classList.add('now-playing');
+        const display = (count === null || count === 0) ? 1 : count;
+        badge.textContent = Number(display).toLocaleString();
+        badge.title = `Scrobbled ${display} time${display === 1 ? '' : 's'}`;
+      }));
+      if (i + BATCH < entries.length) await new Promise(r => setTimeout(r, 1000));
+    }
+  } catch (e) {
+    LIST.innerHTML = `<div class="error">Error: ${escapeHtml(e.message)}</div>`;
+  } finally {
+    REFRESH_BTN.style.opacity = '1';
+  }
+}
+
+// Init
+loadRecentTracks();
+const { username, apiKey } = getSettings();
+if (!username || !apiKey) openModal();
+
+// Register service worker for installability
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
